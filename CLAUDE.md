@@ -36,14 +36,23 @@ Instala ffmpeg, faster-whisper, limpieza de audio, fuentes y genera los SFX.
        restaurar la primera y quitar la segunda.
    - Momentos clave (precio, garantía, revelación, CTA) → reforzar con SFX:
      `python -m vsl_editor sfx-agregar trabajo/VIDEO --t 123.4 --sfx impacto --db -14`
-3. **Preview rápida**: `python -m vsl_editor render trabajo/VIDEO --preview`
+3. **Diseñar las slides explicativas** (lo más importante del estilo VSL — ver `ESCENAS.md`):
+   - Leer el guion final y decidir qué ideas se ilustran con slide (fondo blanco, emoji,
+     flechas, subrayados, cifras con contador, listas que se construyen) y qué tramos van
+     a cámara (gancho, historia, emoción, CTA).
+   - Escribir `trabajo/VIDEO/escenas.json` A MANO con criterio (se puede partir de
+     `python -m vsl_editor escenas-auto trabajo/VIDEO`, pero el borrador es literal y elige
+     emojis genéricos: reescribir los textos como resúmenes cortos y elegir emojis concretos).
+   - Cada elemento con `"en"` = segundo exacto en que se dice esa palabra (`transcripcion.json`).
+   - Revisar con `python -m vsl_editor escenas-preview trabajo/VIDEO` (Read de la imagen).
+4. **Preview rápida**: `python -m vsl_editor render trabajo/VIDEO --preview`
    - Revisar `trabajo/VIDEO/capturas.jpg` (mosaico) y extraer fotogramas concretos con
      `ffmpeg -ss T -i salida/VIDEO_preview.mp4 -frames:v 1 f.jpg` para verlos (Read).
    - Comprobar que los subtítulos no tapan nada importante, que el zoom no corta la cabeza
      (ajustar `--zoom-centro-y`), que el color se ve natural.
-4. **Render final**: `python -m vsl_editor render trabajo/VIDEO` → `salida/VIDEO_editado.mp4`
+5. **Render final**: `python -m vsl_editor render trabajo/VIDEO` → `salida/VIDEO_editado.mp4`
    (+ `.srt` para subir a plataformas).
-5. **Entregar**: resumir al usuario duración antes/después, qué se cortó, decisiones tomadas
+6. **Entregar**: resumir al usuario duración antes/después, qué se cortó, decisiones tomadas
    y enlazar el archivo. Si el usuario lo quiere en Drive, subirlo con el conector.
 
 ## Opciones útiles
@@ -78,6 +87,9 @@ pueden pasar opciones nuevas para cambiarlas sin re-transcribir.
 - `subtitulos.py` — subtítulos ASS abajo (palabras clave en color) + SRT.
 - `sfx.py` — biblioteca de efectos sintetizados (whoosh, pop, click, ding, cash, impacto, riser...).
   Se pueden añadir .wav propios en `assets/sfx/` y usarlos por nombre.
+- `slides.py` — motor de slides: diseños (frase, lista, flujo, cifra, pasos, comparación, imagen),
+  texto con marcado, trazos a mano, animaciones (pop, dibujo de trazos, contador, push-in).
+- `escenas.py` — carga `escenas.json`, convierte tiempos al video editado, SFX de slides, borrador automático.
 - `render.py` — un único pase de ffmpeg (select + color + overlays de zoom + ass + fades).
 
 Carpetas `entrada/`, `salida/` y `trabajo/` no se suben a git (videos pesados).

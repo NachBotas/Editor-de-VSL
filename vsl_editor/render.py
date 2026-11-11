@@ -15,7 +15,7 @@ def _expr_intervalos(intervalos: list[tuple[float, float]], eps: float) -> str:
 
 
 def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
-                    ass_path: Path | None) -> str:
+                    ass_path: Path | None, slides_int: list[tuple[float, float]] | None = None) -> str:
     fps = float(info["fps"])
     eps = 0.5 / fps
     W, H = info["width"], info["height"]
@@ -54,6 +54,14 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
             lineas.append(f"[{actual}][z{k}]overlay=0:0:enable='{en}'[o{k}]")
             actual = f"o{k}"
 
+    if slides_int:
+        # Pista de slides (entrada 2) por encima del presentador en sus intervalos
+        lineas.append(f"[2:v]setpts=PTS-STARTPTS,fps={info['fps_str']},scale={W}:{H},setsar=1,"
+                      f"format=yuv420p[sl]")
+        en = _expr_intervalos(slides_int, eps)
+        lineas.append(f"[{actual}][sl]overlay=0:0:enable='{en}':eof_action=pass[os]")
+        actual = "os"
+
     final = []
     if ass_path is not None:
         final.append(f"ass={escapar_filtro(ass_path)}:fontsdir={escapar_filtro(FONTS_DIR)}")
@@ -68,15 +76,17 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
 
 
 def renderizar(src: Path, audio: Path, salida: Path, segs: list[dict], info: dict,
-               plan_fx: dict, cfg: Config, ass_path: Path | None, trabajo: Path) -> None:
-    grafo = construir_grafo(segs, info, plan_fx, cfg, ass_path)
+               plan_fx: dict, cfg: Config, ass_path: Path | None, trabajo: Path,
+               slides: tuple[Path, list] | None = None) -> None:
+    grafo = construir_grafo(segs, info, plan_fx, cfg, ass_path, slides[1] if slides else None)
+    entrada_slides = ["-f", "concat", "-safe", "0", "-i", str(slides[0])] if slides else []
     script = trabajo / "grafo.txt"
     script.write_text(grafo, encoding="utf-8")
     flag = ["-/filter_complex", str(script)] if ffmpeg_major() >= 7 else ["-filter_complex_script", str(script)]
     preset = "veryfast" if cfg.preview else cfg.preset
     crf = 26 if cfg.preview else cfg.crf
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-stats", "-stats_period", "5",
-           "-i", str(src), "-i", str(audio), *flag,
+           "-i", str(src), "-i", str(audio), *entrada_slides, *flag,
            "-map", "[vout]", "-map", "1:a",
            "-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-profile:v", "high",
            "-pix_fmt", "yuv420p", "-r", info["fps_str"],

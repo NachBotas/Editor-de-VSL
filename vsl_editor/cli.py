@@ -21,6 +21,7 @@ from pathlib import Path
 from . import audio as A
 from .config import ROOT, Config
 from .cutplan import Mapa, construir_segmentos, marcar
+from . import escenas as ESC
 from .efectos import planificar
 from .media import extraer_audio, probe, ts
 from .render import capturas, renderizar
@@ -97,13 +98,24 @@ def analizar(src: Path, cfg: Config, retranscribir: bool = False) -> Path:
     return d
 
 
-def _calcular(plan: dict, cfg: Config):
+def _calcular(plan: dict, cfg: Config, bloqueos=None):
     info = plan["info"]
     segs = construir_segmentos(plan["palabras"], info["duration"], float(info["fps"]), cfg,
                                plan.get("cortes_extra"))
     mapa = Mapa(segs)
-    fx = planificar(plan["palabras"], segs, mapa, cfg, plan.get("sfx_manual"))
+    fx = planificar(plan["palabras"], segs, mapa, cfg, plan.get("sfx_manual"), bloqueos)
     return segs, mapa, fx
+
+
+def _escenas(d: Path, plan: dict, cfg: Config):
+    """Escenas listas para render (o None) + sus intervalos en el video editado."""
+    datos = ESC.cargar(d) if cfg.slides else None
+    if not datos or not datos.get("escenas"):
+        return None, None, []
+    info = plan["info"]
+    segs, mapa, _ = _calcular(plan, cfg)
+    esc = ESC.preparar(datos, mapa, plan["palabras"], info["width"], info["height"], d)
+    return datos, esc, ESC.intervalos(esc)
 
 
 def _informe(d: Path, plan: dict) -> None:
@@ -169,9 +181,13 @@ def render(d: Path, cfg_override: dict | None = None, salida: Path | None = None
     cfg.preview = bool(preview)
     src = Path(plan["fuente"])
     info = plan["info"]
-    segs, mapa, fx = _calcular(plan, cfg)
+    datos_esc, escenas, ints = _escenas(d, plan, cfg)
+    segs, mapa, fx = _calcular(plan, cfg, ints)
     if not segs:
         raise SystemExit("No hay nada que renderizar (¿todas las palabras eliminadas?)")
+    if escenas:
+        fx["eventos"] = sorted(fx["eventos"] + (ESC.eventos_sfx(escenas, datos_esc) if cfg.sfx else []),
+                               key=lambda e: e["t"])
 
     print("▶ Limpiando voz" + f" ({cfg.limpieza_audio})")
     limpio = d / f"voz_limpia_{cfg.limpieza_audio}.wav"
@@ -184,7 +200,7 @@ def render(d: Path, cfg_override: dict | None = None, salida: Path | None = None
     ass = None
     if cfg.subtitulos:
         print("▶ Subtítulos")
-        cues = construir_cues(plan["palabras"], mapa, cfg)
+        cues = construir_cues(plan["palabras"], mapa, cfg, ints)
         ass = d / "subtitulos.ass"
         escribir_ass(cues, ass, info["width"], info["height"], cfg)
         escribir_srt(cues, d / "subtitulos.srt", cfg)
@@ -193,8 +209,13 @@ def render(d: Path, cfg_override: dict | None = None, salida: Path | None = None
         sufijo = "_preview" if cfg.preview else "_editado"
         salida = ROOT / "salida" / f"{src.stem}{sufijo}.mp4"
     salida.parent.mkdir(parents=True, exist_ok=True)
+    pista = None
+    if escenas:
+        print(f"▶ Dibujando {len(escenas)} slides ({sum(b - a for a, b in ints):.0f}s)")
+        lista = ESC.renderizar_pista_escenas(escenas, mapa.duracion, info, d / "slides")
+        pista = (lista, ints)
     print(f"▶ Renderizando video ({len(segs)} segmentos, {ts(mapa.duracion)})")
-    renderizar(src, audio_final, salida, segs, info, fx, cfg, ass, d)
+    renderizar(src, audio_final, salida, segs, info, fx, cfg, ass, d, pista)
     if cfg.subtitulos:
         shutil.copy(d / "subtitulos.srt", salida.with_suffix(".srt"))
     try:
@@ -246,6 +267,7 @@ def _args_config(p: argparse.ArgumentParser) -> None:
     g.add_argument("--zoom-nivel", type=float, dest="zoom_nivel")
     g.add_argument("--zoom-centro-y", type=float, dest="zoom_centro_y")
     g.add_argument("--sin-subs", dest="subtitulos", action="store_false", default=None)
+    g.add_argument("--sin-slides", dest="slides", action="store_false", default=None)
     g.add_argument("--sub-estilo", choices=["simple", "pop", "caja"], dest="sub_estilo")
     g.add_argument("--mayusculas", action="store_true", default=None, dest="sub_mayusculas")
     g.add_argument("--sin-sfx", dest="sfx", action="store_false", default=None)
@@ -299,6 +321,15 @@ def main(argv: list[str] | None = None) -> None:
 
     sub.add_parser("sfx-generar", help="(re)genera la biblioteca de efectos")
 
+    ea = sub.add_parser("escenas-auto", help="borrador automático de slides (escenas.json)")
+    ea.add_argument("trabajo", type=Path)
+    ea.add_argument("--cobertura", type=float, default=0.5, help="fracción del video con slides")
+    ea.add_argument("--forzar", action="store_true", help="sobrescribir escenas.json existente")
+
+    ep = sub.add_parser("escenas-preview", help="hoja con el estado final de cada slide")
+    ep.add_argument("trabajo", type=Path)
+    ep.add_argument("--n", type=int, help="solo la escena N (1 = primera), en 5 momentos")
+
     ns = p.parse_args(argv)
     if ns.cmd in ("editar", "analizar"):
         if not ns.video.exists():
@@ -317,6 +348,24 @@ def main(argv: list[str] | None = None) -> None:
         _guardar_plan(ns.trabajo, plan)
         _informe(ns.trabajo, plan)
         print(f"✔ Añadido {ns.sfx} en {ns.t}s")
+    elif ns.cmd == "escenas-auto":
+        d = ns.trabajo.resolve()
+        if (d / "escenas.json").exists() and not ns.forzar:
+            sys.exit("Ya existe escenas.json (usa --forzar para sobrescribirlo)")
+        plan = _cargar_plan(d)
+        cfg = Config.from_dict(plan["config"])
+        datos = ESC.borrador(plan["palabras"], cfg.palabras_clave, ns.cobertura)
+        (d / "escenas.json").write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"✔ {len(datos['escenas'])} escenas propuestas → {d / 'escenas.json'}")
+    elif ns.cmd == "escenas-preview":
+        d = ns.trabajo.resolve()
+        plan = _cargar_plan(d)
+        cfg = Config.from_dict(plan["config"])
+        _, esc, _ = _escenas(d, plan, cfg)
+        if not esc:
+            sys.exit("No hay escenas.json")
+        out = ESC.hoja_preview(esc, d / "escenas_preview.jpg", ns.n)
+        print(f"✔ {out}")
     elif ns.cmd == "sfx-generar":
         generar_biblioteca(forzar=True)
         print("✔ Biblioteca de SFX generada en assets/sfx/")

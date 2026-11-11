@@ -70,6 +70,9 @@ class Config:
     enfasis_intervalo_min: float = 7.0
     fundido: bool = True
 
+    # Slides explicativas (escenas.json)
+    slides: bool = True
+
     # Subtítulos
     subtitulos: bool = True
     sub_estilo: str = "simple"       # simple | pop | caja

@@ -3,8 +3,8 @@
 set -e
 cd "$(dirname "$0")"
 if ! command -v ffmpeg >/dev/null || ! command -v espeak-ng >/dev/null; then
-  (apt-get install -y -q ffmpeg espeak-ng fonts-inter tesseract-ocr >/dev/null 2>&1 \
-   || (apt-get update -q >/dev/null && apt-get install -y -q ffmpeg espeak-ng fonts-inter tesseract-ocr >/dev/null)) || true
+  (apt-get install -y -q ffmpeg espeak-ng fonts-inter fonts-noto-color-emoji tesseract-ocr >/dev/null 2>&1 \
+   || (apt-get update -q >/dev/null && apt-get install -y -q ffmpeg espeak-ng fonts-inter fonts-noto-color-emoji tesseract-ocr >/dev/null)) || true
 fi
 pip install -q -r requirements.txt
 # Pre-descarga el modelo de transcripción para que la primera edición sea rápida

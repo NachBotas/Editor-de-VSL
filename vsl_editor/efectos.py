@@ -18,7 +18,8 @@ def es_clave(w: dict, claves: set[str]) -> bool:
 
 
 def planificar(palabras: list[dict], segs: list[dict], mapa: Mapa, cfg: Config,
-               sfx_manual: list[dict] | None = None) -> dict:
+               sfx_manual: list[dict] | None = None,
+               bloqueos: list[tuple[float, float]] | None = None) -> dict:
     """Calcula zooms (en tiempo de SALIDA) y eventos de sonido."""
     claves = {norm(k) for k in cfg.palabras_clave}
     dur = mapa.duracion
@@ -55,6 +56,8 @@ def planificar(palabras: list[dict], segs: list[dict], mapa: Mapa, cfg: Config,
         if r is None:
             continue
         s, e = r
+        if bloqueos and any(a - 0.3 <= s <= b for a, b in bloqueos):
+            continue   # durante una slide el énfasis lo hace la propia slide
         n = w.get("n") or norm(w["w"])
         if cfg.zoom and s - ultimo_enf >= cfg.enfasis_intervalo_min and s > 1.0:
             enfasis.append({"s": max(0, s - 0.04), "e": min(dur, e + 1.1), "nivel": cfg.zoom_enfasis})

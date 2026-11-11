@@ -19,7 +19,8 @@ def _limpiar(w: str, mayus: bool) -> str:
     return w.upper() if mayus else w
 
 
-def construir_cues(palabras: list[dict], mapa: Mapa, cfg: Config) -> list[dict]:
+def construir_cues(palabras: list[dict], mapa: Mapa, cfg: Config,
+                   ocultar: list[tuple[float, float]] | None = None) -> list[dict]:
     claves = {norm(k) for k in cfg.palabras_clave}
     vivas = []
     for w in palabras:
@@ -51,6 +52,8 @@ def construir_cues(palabras: list[dict], mapa: Mapa, cfg: Config) -> list[dict]:
         cur.append(item)
     cerrar()
 
+    if ocultar:   # durante las slides el texto ya está en pantalla
+        cues = [c for c in cues if not any(a - 0.1 <= (c["s"] + c["e"]) / 2 <= b for a, b in ocultar)]
     # Ajustar tiempos: sin solapes, duración mínima legible
     for a, b in zip(cues, cues[1:]):
         a["e"] = min(max(a["e"] + 0.12, a["s"] + 0.5), b["s"])

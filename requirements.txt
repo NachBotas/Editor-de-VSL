@@ -1,0 +1,9 @@
+faster-whisper>=1.0
+numpy>=1.24
+scipy>=1.10
+soundfile>=0.12
+noisereduce>=3.0
+pyloudnorm>=0.1
+rapidfuzz>=3.0
+gdown>=5.0
+yt-dlp>=2024.1

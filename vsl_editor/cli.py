@@ -186,9 +186,18 @@ def render(d: Path, cfg_override: dict | None = None, salida: Path | None = None
     if not segs:
         raise SystemExit("No hay nada que renderizar (¿todas las palabras eliminadas?)")
     fx["manuales"] = ESC.zooms_manuales(datos_esc, mapa, plan["palabras"])
-    if escenas:
-        fx["eventos"] = sorted(fx["eventos"] + (ESC.eventos_sfx(escenas, datos_esc) if cfg.sfx else []),
-                               key=lambda e: e["t"])
+    biblioteca = cargar_biblioteca()
+    # Si el usuario cargó su pack, los efectos automáticos usan sus sonidos
+    equivalentes = {"whoosh": "Woosh", "whoosh_suave": "Woosh", "pop": "UI Animation", "cash": "Sun Shine"}
+    for ev in fx["eventos"]:
+        if equivalentes.get(ev["sfx"]) in biblioteca:
+            ev["sfx"] = equivalentes[ev["sfx"]]
+            ev.pop("ancla", None)
+    if cfg.sfx:
+        extra = [{"t": z["s"], "sfx": z["sfx"], "db": z["db"]} for z in fx["manuales"] if z.get("sfx")]
+        if escenas:
+            extra += ESC.eventos_sfx(escenas, datos_esc, biblioteca)
+        fx["eventos"] = sorted(fx["eventos"] + extra, key=lambda e: e["t"])
 
     print("▶ Limpiando voz" + f" ({cfg.limpieza_audio})")
     limpio = d / f"voz_limpia_{cfg.limpieza_audio}.wav"
@@ -196,7 +205,7 @@ def render(d: Path, cfg_override: dict | None = None, salida: Path | None = None
         A.limpiar_voz(d / "audio_original.wav", limpio, cfg.limpieza_audio)
 
     print("▶ Montando audio (cortes + SFX" + (" + música" if cfg.musica else "") + " + loudness)")
-    audio_final = A.construir_audio(limpio, segs, fx["eventos"], cargar_biblioteca(), cfg, d)
+    audio_final = A.construir_audio(limpio, segs, fx["eventos"], biblioteca, cfg, d)
 
     ass = None
     if cfg.subtitulos:

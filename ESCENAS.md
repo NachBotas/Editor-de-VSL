@@ -72,7 +72,30 @@ convierte solo al video ya cortado.
 ]
 ```
 
+Opciones de cada zoom: `"bn": true` (blanco y negro con contraste, para frases de tensión),
+`"sfx": "Woosh"` y `"db": -15` (efecto al entrar el zoom).
+
 Los zooms manuales quedan por encima de los automáticos; las slides, por encima de todo.
+
+## Efectos de sonido de las slides
+
+Cada aparición lleva su efecto (≈1 por segundo). Se usan los efectos de `assets/sfx_usuario/`
+(el pack del usuario) y, si falta alguno, los sintetizados. Se puede cambiar el mapa en `estilo`:
+
+```jsonc
+"estilo": {"sfx_mapa": {"entrada": ["Woosh", -15], "item": ["Finger Snap", -15],
+                        "tach": ["Flicker Text-Animation", -6], "positivo": ["Sun Shine", -16]}}
+```
+
+Roles: `entrada`, `entrada_grande` (escena con `"grande": true`), `emoji`, `item`, `tach`, `ul`,
+`flecha`, `contar` (riser que culmina al terminar de contar), `aterriza`, `positivo`
+(escena con `"positivo": true`).
+
+## Emojis
+
+Se usan los emojis de **Apple (iPhone)** en 160 px (`herramientas/instalar_emojis_apple.sh`, lo
+corre `setup.sh`). Algunos emojis nuevos solo existen en 64 px: elegir alternativas que estén en
+160 px (`python -c "from vsl_editor.slides import _apple; print(_apple('🧠').size)"`).
 
 Cualquier escena admite `"omitir": true` para desactivarla sin borrarla.
 

@@ -15,3 +15,7 @@ trabajo/*
 *.png
 *.jpg
 !analisis/img/*
+
+assets/emoji_apple/
+
+assets/sfx_usuario/

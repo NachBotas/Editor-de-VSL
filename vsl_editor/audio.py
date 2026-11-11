@@ -135,7 +135,8 @@ def mezclar_sfx(y: np.ndarray, eventos: list[dict], biblioteca: dict[str, np.nda
         if clip is None:
             continue
         # "ancla": segundos dentro del clip que deben caer en t (p.ej. el pico del whoosh)
-        inicio = int(round((ev["t"] - ev.get("ancla", 0.0)) * SR))
+        from .sfx import ANCLAS
+        inicio = int(round((ev["t"] - ev.get("ancla", ANCLAS.get(ev["sfx"], 0.0))) * SR))
         g = 10 ** ((ev.get("db", -18) + extra_db) / 20)
         c = clip * g
         if inicio < 0:

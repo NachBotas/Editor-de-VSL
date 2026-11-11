@@ -150,10 +150,22 @@ def generar_biblioteca(forzar: bool = False) -> None:
             sf.write(p, gen(), SR, subtype="PCM_16")
 
 
+SFX_USUARIO = SFX_DIR.parent / "sfx_usuario"
+
+
 def cargar_biblioteca() -> dict[str, np.ndarray]:
+    """Efectos sintetizados + los del usuario (assets/sfx_usuario, mismo nombre = reemplaza)."""
     generar_biblioteca()
     lib: dict[str, np.ndarray] = {}
-    for p in sorted(SFX_DIR.iterdir()):
-        if p.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac", ".m4a"}:
-            lib[p.stem] = leer_audio(p, SR)
+    for carpeta in (SFX_DIR, SFX_USUARIO):
+        if not carpeta.exists():
+            continue
+        for p in sorted(carpeta.iterdir()):
+            if p.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aif", ".aiff"}:
+                y = leer_audio(p, SR)
+                pico = float(np.max(np.abs(y))) or 1.0
+                lib[p.stem] = (y / pico * 0.9).astype(np.float32)   # todos normalizados igual
+                if p.stem not in ANCLAS:
+                    k = int(np.argmax(np.abs(y)))
+                    ANCLAS[p.stem] = k / SR if k / SR > 0.15 else 0.0   # golpe tardío (whoosh, riser)
     return lib

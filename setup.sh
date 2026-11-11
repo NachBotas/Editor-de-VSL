@@ -9,5 +9,6 @@ fi
 pip install -q -r requirements.txt
 # Pre-descarga el modelo de transcripción para que la primera edición sea rápida
 python -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')" >/dev/null 2>&1 || true
+./herramientas/instalar_emojis_apple.sh || true
 python -m vsl_editor sfx-generar >/dev/null
 echo "Editor de VSL listo ✔"

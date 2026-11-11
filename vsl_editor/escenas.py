@@ -95,22 +95,54 @@ def intervalos(escenas: list[RenderEscena]) -> list[tuple[float, float]]:
     return [(e.t0, e.t1) for e in escenas]
 
 
-def eventos_sfx(escenas: list[RenderEscena], datos: dict) -> list[dict]:
-    """Whoosh suave al entrar una slide, pop muy suave en cada aparición, trazo en subrayados."""
+SFX_MAPA_DEFECTO = {
+    # rol -> (efecto, dB). Si el efecto no existe en la biblioteca se usa el de respaldo.
+    "entrada": ("Woosh", -15), "entrada_grande": ("Deep Woosh", -13),
+    "emoji": ("UI Animation", -19), "item": ("Finger Snap", -15), "texto": (None, 0),
+    "tach": ("Flicker Text-Animation", -6), "ul": ("UI Animations", -17), "flecha": ("UI Animations", -18),
+    "contar": ("Riser", -18), "aterriza": ("Hit & Shattered", -16), "positivo": ("Sun Shine", -16),
+    "tarjeta": ("Woosh", -18),
+}
+RESPALDO = {"Woosh": "whoosh", "Deep Woosh": "whoosh", "UI Animation": "pop", "Finger Snap": "click",
+            "Flicker Text-Animation": "tecla", "UI Animations": "click", "Riser": "riser",
+            "Hit & Shattered": "impacto", "Sun Shine": "ding"}
+
+
+def eventos_sfx(escenas: list[RenderEscena], datos: dict, biblioteca: dict | None = None) -> list[dict]:
+    """Un efecto por aparición (≈1 por segundo, como los VSL/reels de alta retención)."""
     estilo = datos.get("estilo", {})
     if not estilo.get("sfx", True):
         return []
-    ev = []
-    for esc in escenas:
-        ev.append({"t": esc.t0, "sfx": "whoosh_suave", "db": -27, "ancla": 0.22})
-        ultimo = esc.t0
-        for e in esc.elems:
-            if e.t - ultimo < 0.25 or e.t <= esc.t0 + 0.05:
+    mapa = {**SFX_MAPA_DEFECTO, **{k: tuple(v) for k, v in estilo.get("sfx_mapa", {}).items()}}
+    lib = biblioteca or {}
+
+    def ev(rol, t, extra=0.0):
+        nombre, db = mapa.get(rol, (None, 0))
+        if not nombre:
+            return None
+        if lib and nombre not in lib:
+            nombre = RESPALDO.get(nombre, nombre)
+        return {"t": t, "sfx": nombre, "db": db + extra}
+
+    out = []
+    specs = [e for e in datos.get("escenas", []) if not e.get("omitir")]
+    for esc, spec in zip(escenas, specs + [{}] * len(escenas)):
+        out.append(ev("entrada_grande" if spec.get("grande") else "entrada", esc.t0))
+        if spec.get("positivo"):
+            out.append(ev("positivo", esc.t0 + 0.05))
+        ultimo = esc.t0 + 0.15
+        for e in sorted(esc.elems, key=lambda x: x.t):
+            if e.t <= esc.t0 + 0.08 or e.t - ultimo < 0.22:
                 continue
-            if e.anim in ("pop", "contar"):
-                ev.append({"t": e.t, "sfx": "pop", "db": -29})
-                ultimo = e.t
-    return ev
+            if e.rol == "contar":
+                out.append(ev("contar", e.t + e.dur))        # el riser culmina cuando termina de contar
+                out.append(ev("aterriza", e.t + e.dur))
+            elif e.rol in mapa:
+                out.append(ev(e.rol, e.t))
+            else:
+                continue
+            ultimo = e.t
+    return [x for x in out if x]
 
 
 # ------------------------------------------------------------------ borrador automático
@@ -237,6 +269,8 @@ def zooms_manuales(datos: dict | None, mapa: Mapa, palabras: list[dict]) -> list
     out = []
     for z in datos.get("zooms", []):
         s, e = mt(z["desde"]), mt(z["hasta"], fin=True)
-        if e - s > 0.1 and z.get("nivel", 1) > 1:
-            out.append({"s": s, "e": e, "nivel": z["nivel"], "cx": z.get("cx", 0.5), "cy": z.get("cy", 0.5)})
+        if e - s > 0.1 and (z.get("nivel", 1) > 1 or z.get("bn")):
+            out.append({"s": s, "e": e, "nivel": max(1.0, z.get("nivel", 1.0)), "cx": z.get("cx", 0.5),
+                        "cy": z.get("cy", 0.5), "bn": bool(z.get("bn")), "sfx": z.get("sfx"),
+                        "db": z.get("db", -15)})
     return out

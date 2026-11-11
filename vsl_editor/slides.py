@@ -44,8 +44,55 @@ def fuente(tam: int, peso: int = 400, mano: bool = False) -> ImageFont.FreeTypeF
         return ImageFont.truetype(str(FONTS_DIR / "Inter-Bold.otf"), tam)
 
 
+APPLE_DIR = FONTS_DIR.parent / "emoji_apple"
+
+
+@lru_cache(maxsize=1)
+def _indice_apple() -> dict[str, Path]:
+    """emoji (sin FE0F) -> mejor PNG de Apple disponible (160 px, o 64 px si no hay)."""
+    import json
+    idx: dict[str, Path] = {}
+    meta = APPLE_DIR / "emoji.json"
+    if not meta.exists():
+        return idx
+    for e in json.loads(meta.read_text(encoding="utf-8")):
+        variantes = {e["unified"]} | ({e["non_qualified"]} if e.get("non_qualified") else set())
+        mejor = None
+        for n in e.get("short_names", []):
+            p = APPLE_DIR / "160" / f"{n}.png"
+            if p.exists():
+                mejor = p
+                break
+        if mejor is None:
+            p = APPLE_DIR / "64" / e["image"]
+            mejor = p if p.exists() else None
+        if mejor:
+            for u in variantes:
+                idx[_clave(u)] = mejor
+    return idx
+
+
+def _clave(unified: str) -> str:
+    return "-".join(c for c in unified.lower().split("-") if c != "fe0f")
+
+
+def _apple(char: str) -> Image.Image | None:
+    clave = _clave("-".join(f"{ord(c):x}" for c in char))
+    p = _indice_apple().get(clave)
+    if p is None:
+        return None
+    img = Image.open(p).convert("RGBA")
+    bb = img.getbbox()
+    return img.crop(bb) if bb else img
+
+
 @lru_cache(maxsize=256)
 def emoji(char: str, alto: int) -> Image.Image:
+    """Emoji estilo iPhone (Apple) si está instalado; si no, Noto Color Emoji."""
+    ap = _apple(char)
+    if ap is not None:
+        r = alto / ap.height
+        return ap.resize((max(1, int(ap.width * r)), alto), Image.LANCZOS)
     f = ImageFont.truetype(EMOJI_FONT, 109)
     tmp = Image.new("RGBA", (109 * max(2, len(char)) + 40, 160), (0, 0, 0, 0))
     ImageDraw.Draw(tmp).text((10, 10), char, font=f, embedded_color=True)
@@ -238,6 +285,7 @@ class Elem:
     anim: str = "pop"        # pop | trazo | corte | fade | contar
     dur: float = 0.28
     contar: tuple | None = None   # (valor_final, fmt_fn, tam, peso, color)
+    rol: str = ""                 # emoji | texto | ul | tach | flecha | contar | tarjeta | item
 
     @property
     def cx(self):
@@ -294,9 +342,11 @@ class Lienzo:
     def px(self, v: float) -> int:
         return int(round(v * self.u))
 
-    def add(self, img, x, y, t, anim="pop", dur=None, **kw):
+    def add(self, img, x, y, t, anim="pop", dur=None, rol=None, **kw):
+        if rol is None:
+            rol = {"pop": "emoji", "trazo": "flecha", "contar": "contar", "fade": "tarjeta"}.get(anim, "")
         e = Elem(img, int(x), int(y), t, anim, dur if dur is not None else
-                 {"pop": 0.30, "trazo": 0.38, "corte": 0.0, "fade": 0.25, "contar": 0.9}[anim], **kw)
+                 {"pop": 0.30, "trazo": 0.38, "corte": 0.0, "fade": 0.25, "contar": 0.9}[anim], rol=rol, **kw)
         self.elems.append(e)
         return e
 
@@ -307,12 +357,12 @@ class Lienzo:
         x = cx - b.img.width / 2 if alinear == "centro" else cx
         if centrar_y:
             y = y - b.img.height / 2
-        self.add(b.img, x, y, t, anim)
+        self.add(b.img, x, y, t, anim, rol="texto")
         for k, (tipo, (a, yy, bb, _)) in enumerate(b.decor):
             tr = trazo(bb - a + self.px(10), max(3, self.px(7 if tipo == "ul" else 6)),
                        ROJO, tipo, semilla=k)
             self.add(tr, x + a - self.px(5), y + yy - tr.height / 2,
-                     (t_decor if t_decor is not None else t + 0.35) + k * 0.1, "trazo")
+                     (t_decor if t_decor is not None else t + 0.35) + k * 0.1, "trazo", rol=tipo)
         return b.img.height
 
 
@@ -393,7 +443,7 @@ class _DISENOS:
             else:
                 L.add(img, x, y, tv, "pop")
             tr = trazo(int(img.width * 0.98), L.px(9), ROJO, "ul", semilla=3)
-            L.add(tr, x, y + alto_v - L.px(52 * tam_v / 150), tv + (0.95 if cont else 0.35), "trazo")
+            L.add(tr, x, y + alto_v - L.px(52 * tam_v / 150), tv + (0.95 if cont else 0.35), "trazo", rol="ul")
         partes.append((alto_v, dibujar_valor))
         if e.get("nota"):
             b = texto_rico(e["nota"], L.px(62), int(L.W * 0.8), mano=True)
@@ -427,7 +477,7 @@ class _DISENOS:
         x0 = cx - ancho_fila / 2
         for k, ((it, b, h), em) in enumerate(zip(filas, iconos)):
             t = mt(it["en"]) if it.get("en") is not None else t0 + 0.2 + k * 0.9
-            L.add(em, x0 + (col - em.width) / 2, y + (h - icono_h) / 2, t)
+            L.add(em, x0 + (col - em.width) / 2, y + (h - icono_h) / 2, t, rol="item")
             L.texto(it["texto"], x0 + col + L.px(30), y + (h - b.img.height) / 2 + L.px(4), t + 0.06,
                     tam, ancho=ancho_txt, alinear="izq")
             y += h + gap

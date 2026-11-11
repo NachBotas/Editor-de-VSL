@@ -35,14 +35,14 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
     capas: list[tuple[tuple, list[tuple[float, float]]]] = []
     auto: dict[tuple, list] = {}
     for z in plan_fx.get("zooms", []) + plan_fx.get("enfasis", []):
-        auto.setdefault((round(z["nivel"], 3), None, None), []).append((z["s"], z["e"]))
+        auto.setdefault((round(z["nivel"], 3), None, None, False), []).append((z["s"], z["e"]))
     for k in sorted(auto):
         if k[0] > 1.0:
             capas.append((k, auto[k]))
     manual: dict[tuple, list] = {}
     for z in plan_fx.get("manuales", []):
-        manual.setdefault((round(z["nivel"], 3), round(z.get("cx", 0.5), 3), round(z.get("cy", 0.5), 3)),
-                          []).append((z["s"], z["e"]))
+        manual.setdefault((round(z["nivel"], 3), round(z.get("cx", 0.5), 3), round(z.get("cy", 0.5), 3),
+                           bool(z.get("bn"))), []).append((z["s"], z["e"]))
     capas += list(manual.items())
 
     actual = "v0"
@@ -51,7 +51,7 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
         salidas = "".join(f"[b{k}]" for k in range(n))
         lineas.append(f"[{actual}]split={n}{salidas}")
         actual = "b0"
-        for k, ((nivel, cx, cy), ints) in enumerate(capas, 1):
+        for k, ((nivel, cx, cy, bn), ints) in enumerate(capas, 1):
             cw = int(round(W / nivel / 2)) * 2
             ch = int(round(H / nivel / 2)) * 2
             if cx is None:   # automático: centrado en x, cara arriba
@@ -59,8 +59,10 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
             else:            # manual: centro en (cx, cy) como fracción del cuadro, sin salirse
                 x = str(int(min(max(cx * W - cw / 2, 0), W - cw)))
                 y = str(int(min(max(cy * H - ch / 2, 0), H - ch)))
+            # B/N con contraste (tensión): negros profundos y blancos brillantes
+            bn_f = ",hue=s=0,eq=contrast=1.18:brightness=-0.02" if bn else ""
             lineas.append(f"[b{k}]crop={cw}:{ch}:{x}:{y},"
-                          f"scale={W}:{H}:flags=lanczos,setsar=1[z{k}]")
+                          f"scale={W}:{H}:flags=lanczos,setsar=1{bn_f}[z{k}]")
             en = _expr_intervalos(ints, eps)
             lineas.append(f"[{actual}][z{k}]overlay=0:0:enable='{en}'[o{k}]")
             actual = f"o{k}"

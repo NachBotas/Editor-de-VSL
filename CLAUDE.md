@@ -11,7 +11,13 @@ hasta la llamada a la acción.
 ./setup.sh
 ```
 
-Instala ffmpeg, faster-whisper, limpieza de audio, fuentes y genera los SFX.
+Instala ffmpeg, faster-whisper, limpieza de audio, fuentes, emojis de Apple y genera los SFX.
+
+**Pack de efectos del usuario:** está en Google Drive, carpeta `Edicion Claude/sfx_pack_real`
+(Parte 1 y Parte 2). Descargarlo a `assets/sfx_usuario/` al iniciar (los .wav no van a git):
+buscar los archivos con el conector de Drive y bajar cada uno con
+`curl -sSL -o "assets/sfx_usuario/NOMBRE.wav" "https://drive.usercontent.google.com/download?id=ID&export=download&confirm=t"`.
+Guía de estilo adicional del usuario: `Edicion Claude/Receta de edición Maurito/Receta de edición Maurito.md`.
 
 ## Cómo conseguir el video
 

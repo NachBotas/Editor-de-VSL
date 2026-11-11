@@ -61,6 +61,19 @@ convierte solo al video ya cortado.
  ]}
 ```
 
+## Zooms manuales (gráficos, pantallas, encuadres)
+
+```jsonc
+"zooms": [
+  // encuadre base de una grabación de pantalla: quita dock y barras, conserva la burbuja
+  {"desde": 129.6, "hasta": 187.2, "nivel": 1.18, "cx": 0.424, "cy": 0.424},
+  // acercamiento a la zona que se está explicando (cx, cy = punto del cuadro, 0–1)
+  {"desde": 133.5, "hasta": 139.3, "nivel": 1.75, "cx": 0.42, "cy": 0.47}
+]
+```
+
+Los zooms manuales quedan por encima de los automáticos; las slides, por encima de todo.
+
 Cualquier escena admite `"omitir": true` para desactivarla sin borrarla.
 
 ## Criterios de diseño (aprendidos del VSL de referencia)

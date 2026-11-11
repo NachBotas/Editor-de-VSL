@@ -29,14 +29,21 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
     cadena += cadena_color(cfg)
     lineas.append(f"[0:v]{','.join(cadena)}[v0]")
 
-    # Zooms: una rama por nivel, superpuesta solo en sus intervalos
-    capas: list[tuple[float, list[tuple[float, float]]]] = []
-    niveles: dict[float, list] = {}
+    # Zooms: una rama por (nivel, centro), superpuesta solo en sus intervalos.
+    # Primero los automáticos (punch-in / énfasis), encima los manuales (encuadres de pantalla).
+    cy_auto = cfg.zoom_centro_y
+    capas: list[tuple[tuple, list[tuple[float, float]]]] = []
+    auto: dict[tuple, list] = {}
     for z in plan_fx.get("zooms", []) + plan_fx.get("enfasis", []):
-        niveles.setdefault(round(z["nivel"], 3), []).append((z["s"], z["e"]))
-    for nivel in sorted(niveles):      # el nivel más alto queda encima
-        if nivel > 1.0:
-            capas.append((nivel, niveles[nivel]))
+        auto.setdefault((round(z["nivel"], 3), None, None), []).append((z["s"], z["e"]))
+    for k in sorted(auto):
+        if k[0] > 1.0:
+            capas.append((k, auto[k]))
+    manual: dict[tuple, list] = {}
+    for z in plan_fx.get("manuales", []):
+        manual.setdefault((round(z["nivel"], 3), round(z.get("cx", 0.5), 3), round(z.get("cy", 0.5), 3)),
+                          []).append((z["s"], z["e"]))
+    capas += list(manual.items())
 
     actual = "v0"
     if capas:
@@ -44,11 +51,15 @@ def construir_grafo(segs: list[dict], info: dict, plan_fx: dict, cfg: Config,
         salidas = "".join(f"[b{k}]" for k in range(n))
         lineas.append(f"[{actual}]split={n}{salidas}")
         actual = "b0"
-        cy = cfg.zoom_centro_y
-        for k, (nivel, ints) in enumerate(capas, 1):
+        for k, ((nivel, cx, cy), ints) in enumerate(capas, 1):
             cw = int(round(W / nivel / 2)) * 2
             ch = int(round(H / nivel / 2)) * 2
-            lineas.append(f"[b{k}]crop={cw}:{ch}:(iw-{cw})/2:(ih-{ch})*{cy},"
+            if cx is None:   # automático: centrado en x, cara arriba
+                x, y = f"(iw-{cw})/2", f"(ih-{ch})*{cy_auto}"
+            else:            # manual: centro en (cx, cy) como fracción del cuadro, sin salirse
+                x = str(int(min(max(cx * W - cw / 2, 0), W - cw)))
+                y = str(int(min(max(cy * H - ch / 2, 0), H - ch)))
+            lineas.append(f"[b{k}]crop={cw}:{ch}:{x}:{y},"
                           f"scale={W}:{H}:flags=lanczos,setsar=1[z{k}]")
             en = _expr_intervalos(ints, eps)
             lineas.append(f"[{actual}][z{k}]overlay=0:0:enable='{en}'[o{k}]")

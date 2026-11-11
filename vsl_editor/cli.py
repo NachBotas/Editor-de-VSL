@@ -111,7 +111,7 @@ def _escenas(d: Path, plan: dict, cfg: Config):
     """Escenas listas para render (o None) + sus intervalos en el video editado."""
     datos = ESC.cargar(d) if cfg.slides else None
     if not datos or not datos.get("escenas"):
-        return None, None, []
+        return datos, None, []
     info = plan["info"]
     segs, mapa, _ = _calcular(plan, cfg)
     esc = ESC.preparar(datos, mapa, plan["palabras"], info["width"], info["height"], d)
@@ -185,6 +185,7 @@ def render(d: Path, cfg_override: dict | None = None, salida: Path | None = None
     segs, mapa, fx = _calcular(plan, cfg, ints)
     if not segs:
         raise SystemExit("No hay nada que renderizar (¿todas las palabras eliminadas?)")
+    fx["manuales"] = ESC.zooms_manuales(datos_esc, mapa, plan["palabras"])
     if escenas:
         fx["eventos"] = sorted(fx["eventos"] + (ESC.eventos_sfx(escenas, datos_esc) if cfg.sfx else []),
                                key=lambda e: e["t"])

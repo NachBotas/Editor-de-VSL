@@ -222,3 +222,21 @@ def hoja_preview(escenas: list[RenderEscena], salida: Path, n: int | None = None
         hoja.paste(im, (6 + (k % cols) * (tw + 6), 6 + (k // cols) * (th + 6)))
     hoja.save(salida, quality=90)
     return salida
+
+
+def zooms_manuales(datos: dict | None, mapa: Mapa, palabras: list[dict]) -> list[dict]:
+    """'zooms' de escenas.json (tiempos originales) -> intervalos en el video editado.
+
+    {"desde": 600, "hasta": 640, "nivel": 1.4, "cx": 0.45, "cy": 0.45}
+    cx/cy = punto del cuadro (0-1) que queda en el centro. Útil para encuadrar gráficos
+    o pantallas y acercar la zona que se está explicando.
+    """
+    if not datos:
+        return []
+    mt = MapaT(mapa, palabras)
+    out = []
+    for z in datos.get("zooms", []):
+        s, e = mt(z["desde"]), mt(z["hasta"], fin=True)
+        if e - s > 0.1 and z.get("nivel", 1) > 1:
+            out.append({"s": s, "e": e, "nivel": z["nivel"], "cx": z.get("cx", 0.5), "cy": z.get("cy", 0.5)})
+    return out

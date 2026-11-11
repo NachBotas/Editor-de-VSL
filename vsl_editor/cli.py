@@ -272,6 +272,7 @@ def _args_config(p: argparse.ArgumentParser) -> None:
     g.add_argument("--sub-estilo", choices=["simple", "pop", "caja"], dest="sub_estilo")
     g.add_argument("--mayusculas", action="store_true", default=None, dest="sub_mayusculas")
     g.add_argument("--sin-sfx", dest="sfx", action="store_false", default=None)
+    g.add_argument("--sfx-db", type=float, dest="sfx_db", help="subir/bajar todos los SFX (dB)")
     g.add_argument("--sfx-cortes", action="store_true", default=None, dest="sfx_en_cortes")
     g.add_argument("--claves", help="palabras clave extra separadas por coma")
     g.add_argument("--preview", action="store_true", default=None, help="render rápido 720p")

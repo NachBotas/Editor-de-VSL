@@ -127,7 +127,8 @@ def a_lufs(y: np.ndarray, objetivo: float) -> np.ndarray:
     return (y * 10 ** ((objetivo - medido) / 20)).astype(np.float32)
 
 
-def mezclar_sfx(y: np.ndarray, eventos: list[dict], biblioteca: dict[str, np.ndarray]) -> np.ndarray:
+def mezclar_sfx(y: np.ndarray, eventos: list[dict], biblioteca: dict[str, np.ndarray],
+                extra_db: float = 0.0) -> np.ndarray:
     out = y.copy()
     for ev in eventos:
         clip = biblioteca.get(ev["sfx"])
@@ -135,7 +136,7 @@ def mezclar_sfx(y: np.ndarray, eventos: list[dict], biblioteca: dict[str, np.nda
             continue
         # "ancla": segundos dentro del clip que deben caer en t (p.ej. el pico del whoosh)
         inicio = int(round((ev["t"] - ev.get("ancla", 0.0)) * SR))
-        g = 10 ** (ev.get("db", -18) / 20)
+        g = 10 ** ((ev.get("db", -18) + extra_db) / 20)
         c = clip * g
         if inicio < 0:
             c, inicio = c[-inicio:], 0
@@ -146,7 +147,12 @@ def mezclar_sfx(y: np.ndarray, eventos: list[dict], biblioteca: dict[str, np.nda
 
 
 def mezclar_musica(voz: np.ndarray, ruta: str, db: float) -> np.ndarray:
-    m = leer_audio(ruta, SR)
+    from . import musica
+    if ruta in musica.ESTILOS:     # música generada por síntesis, del largo exacto
+        print(f"  · componiendo música '{ruta}' ({len(voz) / SR:.0f}s)")
+        m = musica.generar(len(voz) / SR, ruta)
+    else:
+        m = leer_audio(ruta, SR)
     if len(m) == 0:
         return voz
     reps = int(np.ceil(len(voz) / len(m)))
@@ -188,7 +194,7 @@ def construir_audio(clean_wav: Path, segs: list[dict], eventos: list[dict],
     y = leer_audio(clean_wav, SR)
     voz = cortar(y, segs)
     voz = a_lufs(voz, cfg.lufs)
-    mezcla = mezclar_sfx(voz, eventos, biblioteca) if cfg.sfx else voz
+    mezcla = mezclar_sfx(voz, eventos, biblioteca, cfg.sfx_db) if cfg.sfx else voz
     if cfg.musica:
         mezcla = mezclar_musica(mezcla, cfg.musica, cfg.musica_db)
     pico = float(np.max(np.abs(mezcla))) if len(mezcla) else 1.0

@@ -70,6 +70,8 @@ Instala ffmpeg, faster-whisper, limpieza de audio, fuentes y genera los SFX.
 | Zoom | `--sin-zoom`, `--zoom-nivel 1.1`, `--zoom-centro-y 0.35` |
 | SFX | `--sin-sfx`, `--sfx-cortes` (whoosh suave en cada corte) |
 | Música de fondo con ducking | `--musica ruta.mp3 --musica-db -24` |
+| Música mística generada (528 Hz, sin derechos) | `--musica mistica` (o `mistica432`) `--musica-db -22` |
+| Efectos más/menos fuertes | `--sfx-db 6` (+6 dB = el doble) / `--sfx-db -6` |
 | Detección de tomas más/menos agresiva | `--umbral-toma 70` (más) / `90` (menos) |
 | Transcripción más precisa | `--modelo medium` + `--retranscribir` |
 

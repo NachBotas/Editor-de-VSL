@@ -52,7 +52,7 @@ class Config:
     # Audio
     limpieza_audio: str = "estandar"  # ninguna | suave | estandar | fuerte
     lufs: float = -16.0
-    musica: str | None = None
+    musica: str | None = None        # ruta a un mp3/wav, o un estilo generado: "mistica", "mistica432"
     musica_db: float = -24.0         # volumen de la música bajo la voz
 
     # Video / color
@@ -83,7 +83,8 @@ class Config:
 
     # Efectos de sonido
     sfx: bool = True
-    sfx_en_cortes: bool = False      # whoosh suave en cada cambio de zoom
+    sfx_en_cortes: bool = False
+    sfx_db: float = 0.0              # ganancia extra para TODOS los efectos (+6 = el doble de fuerte)      # whoosh suave en cada cambio de zoom
     palabras_clave: list[str] = field(default_factory=lambda: list(PALABRAS_CLAVE_ES))
 
     # Render

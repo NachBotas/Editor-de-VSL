@@ -61,3 +61,40 @@ def test_segmentos_alineados_y_mapa():
     m = Mapa(segs)
     assert m.duracion < 10.0 - 1.5
     assert m(ws[0]["s"]) is not None
+
+
+def test_repeticiones_retoricas_se_conservan():
+    for texto in ["eso es increíble. increíble. increíble.", "trabajé horas y horas en esto",
+                  "es muy muy fácil", "nunca, nunca te rindas"]:
+        ws = construir(texto)
+        marcar(ws, Config())
+        assert quitadas(ws) == "", texto
+
+
+def test_anafora_no_es_toma_repetida():
+    ws, t = frase("la forma en que compramos,", 0.0)
+    ws2, _ = frase("la forma en que trabajamos.", t + 0.1)
+    ws = ws + ws2
+    marcar(ws, Config())
+    assert quitadas(ws) == ""
+
+
+def test_contraste_y_paralelos_se_conservan():
+    casos = [
+        ("lo difícil no es conseguir clientes.", "lo difícil es conseguir que te respondan."),
+        ("tiene las variaciones del gancho.", "tiene las variaciones del cierre."),
+    ]
+    for a, b in casos:
+        ws, t = frase(a, 0.0)
+        ws2, _ = frase(b, t + 0.05)
+        ws = ws + ws2
+        marcar(ws, Config())
+        assert quitadas(ws) == "", (a, b)
+
+
+def test_reinicio_con_titubeo_se_corta():
+    ws, t = frase("lo que te quiero", 0.0)
+    ws2, _ = frase("lo que te voy a decir hoy.", t + 0.3)
+    ws = ws + ws2
+    marcar(ws, Config())
+    assert quitadas(ws) == "lo que te quiero"

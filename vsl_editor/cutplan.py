@@ -83,6 +83,62 @@ def _vivas(ws: list[dict]) -> list[dict]:
     return [w for w in ws if w["keep"]]
 
 
+INTENSIFICADORES = {
+    "muy", "mucho", "nunca", "jamas", "si", "no", "nada", "todo", "super", "mas", "cada", "otra",
+    "very", "really", "so", "never", "no", "yes", "more", "super", "much", "insane", "incredible",
+    "increible", "again", "over", "and", "y",
+}
+CONJUNCIONES = {"and", "y", "e", "after", "tras", "por", "by", "to", "a"}
+
+
+def _es_retorica(vivas: list[dict], i: int, n: int) -> bool:
+    """Repeticiones intencionales que un editor NO debe cortar.
+
+    - Énfasis: "Insane. Insane. Insane.", "muy muy", "nunca, nunca"
+    - "horas y horas", "día tras día", "paso a paso"
+    - Una pausa marcada con puntuación entre las dos apariciones (ritmo deliberado)
+    """
+    a = vivas[i:i + n]
+    toks = [w["n"] for w in a]
+    if n == 1 and toks[0] in INTENSIFICADORES:
+        return True
+    if n == 2 and (toks[0] in CONJUNCIONES or toks[1] in CONJUNCIONES):
+        return True
+    if all(t in INTENSIFICADORES for t in toks):
+        return True
+    if a[-1]["w"].rstrip().endswith((",", ".", "!", "?", "…", ";")) and n <= 2:
+        return True
+    return False
+
+
+VACIAS = {"el", "la", "los", "las", "un", "una", "de", "del", "que", "y", "a", "en", "es", "lo",
+          "the", "a", "an", "of", "to", "and", "is", "it", "that", "in", "or", "o"}
+
+
+NEGACIONES = {"no", "not", "non", "isnt", "arent", "dont", "doesnt", "wont", "cant", "never", "nunca",
+              "ni", "tampoco", "jamas", "sin", "without"}
+
+
+def _es_misma_idea(ta: list[str], tb: list[str]) -> bool:
+    """¿B vuelve a decir lo mismo que A (toma fallida) o es una estructura paralela?
+
+    Toma fallida: B repite casi todas las palabras con contenido de A
+    ("...comete un error" → "...comete un error muy grave").
+    Paralela/contraste: cambia la palabra clave o la polaridad
+    ("the hard part ISN'T..." / "the hard part IS...", "the HOOK variations" / "the CTA...").
+    """
+    ventana = tb[:len(ta) + 3]
+    if bool(NEGACIONES & set(ta)) != bool(NEGACIONES & set(ventana)):
+        return False
+    cont = [t for t in ta if t not in VACIAS and len(t) > 2] or ta
+    cubiertas = sum(1 for t in cont if t in ventana)
+    return cubiertas / len(cont) >= 0.8
+
+
+def _final_repetido(ta: list[str], tb: list[str]) -> bool:
+    return _es_misma_idea(ta, tb)
+
+
 def _tartamudeos(ws: list[dict]) -> None:
     """'que que', 'lo que lo que' -> se queda la última aparición."""
     for n in (5, 4, 3, 2, 1):
@@ -92,7 +148,15 @@ def _tartamudeos(ws: list[dict]) -> None:
         while i + 2 * n <= len(vivas):
             a, b = toks[i:i + n], toks[i + n:i + 2 * n]
             if a == b and all(a) and vivas[i + 2 * n - 1]["e"] - vivas[i]["s"] < 4 + n:
-                if n == 1 and (a[0].isdigit() or len(a[0]) == 0):
+                fin_frase = vivas[i + n - 1]["w"].rstrip().endswith((".", "!", "?"))
+                hueco = vivas[i + n]["s"] - vivas[i + n - 1]["e"]
+                anadiplosis = n >= 2 and fin_frase and hueco < 0.3   # "...high ticket sales. High ticket sales is..."
+                # una repetición que cruza un punto no es tartamudeo
+                anadiplosis |= n >= 3 and any(w["w"].rstrip().endswith((".", "!", "?"))
+                                              for w in vivas[i:i + n - 1])
+                # "win-win": Whisper separa el guion ("win", "-win")
+                anadiplosis |= n == 1 and vivas[i + 1]["w"].startswith("-")
+                if (n == 1 and (a[0].isdigit() or len(a[0]) == 0)) or _es_retorica(vivas, i, n) or anadiplosis:
                     i += 1
                     continue
                 for w in vivas[i:i + n]:
@@ -173,7 +237,16 @@ def _tomas_falsas(ws: list[dict], umbral: int) -> None:
                 if len(ta) >= 2 and len(tb) >= max(2, len(ta) - 1):
                     s = max(_sim(ta, tb[:len(ta)]), _sim(ta, tb[:len(ta) + 1]),
                             _sim(ta, tb[:max(1, len(ta) - 1)]))
-                    if s >= umbral:
+                    hueco = B.s - A.e
+                    # Anáfora ("the way we buy, the way we work"): mismo arranque, final distinto
+                    # y sin parar a respirar -> es retórica, no una toma fallida.
+                    final_distinto = len(ta) >= 2 and len(tb) > len(ta) - 1 and \
+                        ta[-1] != tb[len(ta) - 1] and _sim(ta[:-1], tb[:len(ta) - 1]) >= 95
+                    anafora = (final_distinto or not _es_misma_idea(ta, tb)) and hueco < 0.45
+                    # Anadiplosis: "...high ticket sales. High ticket sales is..." sin respirar
+                    fin = A.palabras[-1]["w"].rstrip().endswith((".", "!", "?"))
+                    anafora |= fin and hueco < 0.25 and len(ta) <= 6
+                    if s >= umbral and not anafora:
                         for w in A.palabras + medio:
                             _quitar(w, "toma repetida")
                         cambiado = True
@@ -181,7 +254,10 @@ def _tomas_falsas(ws: list[dict], umbral: int) -> None:
                 # 3) final de A ≈ comienzo de B  (retomó a mitad de frase)
                 if j == k + 1:
                     for L in range(min(len(ta), len(tb)) - 1, 2, -1):
-                        if _sim(ta[-L:], tb[:L]) >= max(umbral, 85):
+                        if _sim(ta[-L:], tb[:L]) >= max(umbral, 85) and \
+                                (_final_repetido(ta[-L:], tb) or B.s - A.e >= 0.45) and \
+                                not (A.palabras[-1]["w"].rstrip().endswith((".", "!", "?"))
+                                     and B.s - A.e < 0.25):
                             for w in A.palabras[-L:]:
                                 _quitar(w, "toma repetida")
                             cambiado = True
@@ -202,7 +278,19 @@ def _reinicio_interno(A: Frase, umbral: int) -> bool:
             a = t[i:i + L]
             for j in range(i + L, min(i + L + 3, n - L + 1)):
                 b = t[j:j + L]
-                if a[:2] == b[:2] and _sim(a, b) >= max(umbral, 82):
+                # Estructura paralela deliberada: hay una coma entre ambas apariciones
+                # ("la forma en que compramos, la forma en que...") o el bloque ya es
+                # repetitivo en sí mismo ("horas y horas y horas").
+                pausa_deliberada = any(w["w"].rstrip().endswith((",", ";", ":"))
+                                       for w in A.palabras[i:j]) or len(set(a)) < len(a)
+                # Si lo que se quitaría no se vuelve a decir después, solo es toma
+                # fallida cuando hay titubeo (pausa) antes de reiniciar.
+                titubeo = A.palabras[j]["s"] - A.palabras[j - 1]["e"] >= 0.2
+                if i > 0 and (t[i - 1] in NEGACIONES or A.palabras[i]["w"].startswith("-")):
+                    continue   # "non-expert ... or expert ..." es un contraste
+                paralela = not titubeo and not _es_misma_idea(t[i:j], t[j:j + (j - i) + 2])
+                if a[:2] == b[:2] and _sim(a, b) >= max(umbral, 82) and not pausa_deliberada \
+                        and not paralela:
                     for w in A.palabras[i:j]:
                         _quitar(w, "toma repetida")
                     return True

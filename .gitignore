@@ -11,3 +11,7 @@ trabajo/*
 *.mkv
 *.wav
 !assets/sfx/*.wav
+
+*.png
+*.jpg
+!analisis/img/*

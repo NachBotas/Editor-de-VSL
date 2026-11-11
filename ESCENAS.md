@@ -72,6 +72,10 @@ convierte solo al video ya cortado.
 ]
 ```
 
+Todos los zooms son **fluidos**: entran y salen en ~0,6 s con aceleración y frenado (una sola
+curva continua, `render.curva_zoom`). Con `"suave": false` el zoom entra de golpe (usarlo solo
+cuando coincide con un corte, p. ej. el encuadre de una grabación de pantalla).
+
 Opciones de cada zoom: `"bn": true` (blanco y negro con contraste, para frases de tensión),
 `"sfx": "Woosh"` y `"db": -15` (efecto al entrar el zoom).
 

@@ -39,3 +39,26 @@ def test_todas_las_escenas_renderizan():
             for t in (0.0, 0.1, 1.5, 2.95):
                 im = r.frame(t)
                 assert im.size == (W, H)
+
+
+def test_curva_zoom_fluida():
+    """Los zooms entran y salen con rampa suave; con "suave": false, de golpe."""
+    import re
+    from vsl_editor.config import Config
+    from vsl_editor.render import curva_zoom
+    fx = {"zooms": [{"s": 2, "e": 5, "nivel": 1.1}],
+          "manuales": [{"s": 7, "e": 9, "nivel": 1.5, "cx": 0.3, "cy": 0.3, "suave": False}]}
+    f = curva_zoom(fx, Config(), 30.0, 10.0)
+    x0 = re.search(r"x0='([^']*)'", f).group(1)
+    reg = {}
+    env = dict(gte=lambda a, b: float(a >= b), lt=lambda a, b: float(a < b),
+               clip=lambda v, a, b: min(max(v, a), b), W=1920, H=1080,
+               st=lambda i, v: reg.__setitem__(int(i), v) or v, ld=lambda i: reg[int(i)])
+
+    def z(n):
+        for p in x0.split(";")[:-1]:
+            eval(p.replace("in", "IN"), {}, {**env, "IN": n})
+        return reg[0]
+    assert z(60) == 1.0 and abs(z(78) - 1.1) < 1e-6          # 2.0 s -> 2.6 s
+    assert 1.0 < z(66) < 1.1                                  # a mitad de la rampa
+    assert z(209) == 1.0 and abs(z(211) - 1.5) < 1e-6         # instantáneo

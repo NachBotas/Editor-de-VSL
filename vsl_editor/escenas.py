@@ -272,5 +272,6 @@ def zooms_manuales(datos: dict | None, mapa: Mapa, palabras: list[dict]) -> list
         if e - s > 0.1 and (z.get("nivel", 1) > 1 or z.get("bn")):
             out.append({"s": s, "e": e, "nivel": max(1.0, z.get("nivel", 1.0)), "cx": z.get("cx", 0.5),
                         "cy": z.get("cy", 0.5), "bn": bool(z.get("bn")), "sfx": z.get("sfx"),
+                        "suave": z.get("suave", True),
                         "db": z.get("db", -15)})
     return out
